@@ -54,7 +54,7 @@
 #define VERSION_STRING "Info Beamer " VERSION "+" LUA_VERSION
 #endif
 
-#define INFO_URL "http://info-beamer.org/"
+#define INFO_URL "modified by Lars Struss"
 
 #define NODE_CODE_FILE "node.lua"
 
