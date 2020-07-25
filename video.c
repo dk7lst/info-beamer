@@ -34,6 +34,8 @@
 #include <lualib.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 
 #include "misc.h"
@@ -69,7 +71,7 @@ static void video_free(video_t *video) {
         av_free(video->scaled_frame);
 
     if (video->codec_context)
-        avcodec_close(video->codec_context);
+        avcodec_free_context(&video->codec_context);
     if (video->format_context)
         avformat_close_input(&video->format_context);
 
@@ -88,7 +90,7 @@ static int video_open(video_t *video, const char *filename) {
 
     video->stream_idx = -1;
     for (int i = 0; i < video->format_context->nb_streams; i++) {
-        if (video->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
+        if (video->format_context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             video->stream_idx = i;
             break;
         }
@@ -100,8 +102,9 @@ static int video_open(video_t *video, const char *filename) {
     }
 
     AVStream *stream = video->format_context->streams[video->stream_idx];
-    video->codec_context = stream->codec;
-    video->codec = avcodec_find_decoder(video->codec_context->codec_id);
+    video->codec = avcodec_find_decoder(stream->codecpar->codec_id);
+    video->codec_context = avcodec_alloc_context3(video->codec);
+    avcodec_parameters_to_context(video->codec_context, stream->codecpar);
 
     /* Save Width/Height */
     video->width = video->codec_context->width;
@@ -152,20 +155,11 @@ static int video_open(video_t *video, const char *filename) {
     }
 
     /* Create data buffer */
-    video->buffer = av_malloc(avpicture_get_size(
-        video->format, 
-        video->buffer_width, 
-        video->buffer_height
-    ));
+    video->buffer = av_malloc(av_image_get_buffer_size(video->format, video->buffer_width, video->buffer_height, 1));
 
     /* Init buffers */
-    avpicture_fill(
-        (AVPicture *) video->scaled_frame, 
-        video->buffer, 
-        video->format, 
-        video->buffer_width, 
-        video->buffer_height
-    );
+    av_image_fill_arrays(video->scaled_frame->data, video->scaled_frame->linesize, video->buffer,
+      video->format, video->buffer_width, video->buffer_height, 1);
 
     /* Init scale & convert */
     video->scaler = sws_getContext(
@@ -203,25 +197,25 @@ again:
     if (av_read_frame(video->format_context, &packet)) {
         fprintf(stderr, "no next frame\n");
         video->finished = 1;
-        av_free_packet(&packet);
+        av_packet_unref(&packet);
         return 0;
     }
 
     /* Is it what we're trying to parse? */
     if (packet.stream_index != video->stream_idx) {
         // fprintf(stderr, "not video\n");
-        av_free_packet(&packet);
+        av_packet_unref(&packet);
         goto again;
     }
 
     /* Decode it! */
-    int complete_frame = 0;
-    avcodec_decode_video2(video->codec_context, video->raw_frame, &complete_frame, &packet);
+    int complete_frame = !avcodec_send_packet(video->codec_context, &packet)
+      && !avcodec_receive_frame(video->codec_context, video->raw_frame);
 
     /* Success? If not, drop packet. */
     if (!complete_frame) {
         fprintf(stderr, ERROR("incomplete video packet\n"));
-        av_free_packet(&packet);
+        av_packet_unref(&packet);
         goto again;
     }
 
@@ -251,7 +245,7 @@ again:
         video->scaled_frame->data, 
         video->scaled_frame->linesize
     );
-    av_free_packet(&packet);
+    av_packet_unref(&packet);
     return 1;
 }
 
