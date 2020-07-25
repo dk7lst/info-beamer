@@ -1,6 +1,6 @@
 /* See Copyright Notice in LICENSE.txt */
 
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE //_BSD_SOURCE
 #define _GNU_SOURCE
 #include <strings.h>
 #include <unistd.h>
@@ -1511,8 +1511,6 @@ int main(int argc, char *argv[]) {
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd == -1)
         die("cannot open inotify: %s", strerror(errno));
-
-    av_register_all();
 
     event_base = event_init();
     dns_base = evdns_base_new(event_base, 1);

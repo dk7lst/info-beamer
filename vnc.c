@@ -1,6 +1,6 @@
 /* See Copyright Notice in LICENSE.txt */
 
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE //_BSD_SOURCE
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
