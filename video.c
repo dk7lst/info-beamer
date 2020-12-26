@@ -104,11 +104,17 @@ static int video_open(video_t *video, const char *filename) {
     AVStream *stream = video->format_context->streams[video->stream_idx];
     video->codec = avcodec_find_decoder(stream->codecpar->codec_id);
     video->codec_context = avcodec_alloc_context3(video->codec);
-    avcodec_parameters_to_context(video->codec_context, stream->codecpar);
 
     /* Save Width/Height */
-    video->width = video->codec_context->width;
-    video->height = video->codec_context->height;
+    video->width = stream->codecpar->width;
+    video->height = stream->codecpar->height;
+
+    // https://ffmpeg.org/doxygen/4.1/decode_video_8c-example.html
+    video->codec_context->width = video->width;
+    video->codec_context->height = video->height;
+    video->codec_context->sample_aspect_ratio.num = stream->codecpar->sample_aspect_ratio.num;
+    video->codec_context->sample_aspect_ratio.den = stream->codecpar->sample_aspect_ratio.den;
+    video->codec_context->pix_fmt = stream->codecpar->format;
 
     if (!video->codec || avcodec_open2(video->codec_context, video->codec, NULL) < 0) {
         fprintf(stderr, ERROR("cannot open codec\n"));
@@ -155,11 +161,27 @@ static int video_open(video_t *video, const char *filename) {
     }
 
     /* Create data buffer */
-    video->buffer = av_malloc(av_image_get_buffer_size(video->format, video->buffer_width, video->buffer_height, 1));
+    video->buffer = av_malloc(
+#if 1
+    av_image_get_buffer_size(video->format, video->buffer_width, video->buffer_height, 1)
+#else
+    avpicture_get_size(video->format, video->buffer_width, video->buffer_height)
+#endif
+    );
 
     /* Init buffers */
+#if 1
     av_image_fill_arrays(video->scaled_frame->data, video->scaled_frame->linesize, video->buffer,
       video->format, video->buffer_width, video->buffer_height, 1);
+#else
+    avpicture_fill(
+        (AVPicture *) video->scaled_frame, 
+        video->buffer, 
+        video->format, 
+        video->buffer_width, 
+        video->buffer_height
+    );
+#endif
 
     /* Init scale & convert */
     video->scaler = sws_getContext(
@@ -281,6 +303,9 @@ static int video_next(lua_State *L) {
     glPixelStorei(GL_UNPACK_SKIP_ROWS, video->buffer_height - video->height);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, video->buffer_width);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+//puts("!");
+//for(int i = 0; i < 50000; ++i) video->buffer[i] = rand() & 0xFF;
 
     glTexSubImage2D(
         GL_TEXTURE_2D,

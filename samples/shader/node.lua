@@ -1,4 +1,4 @@
-gl.setup(640, 480)
+gl.setup(1920, 1080)
 
 util.resource_loader{
     "lua.png",

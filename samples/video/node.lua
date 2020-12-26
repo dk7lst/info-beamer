@@ -1,4 +1,4 @@
-gl.setup(640, 480)
+gl.setup(1920, 1080)
 
 local video = resource.load_video("video.mp4")
 

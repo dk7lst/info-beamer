@@ -1529,8 +1529,8 @@ int main(int argc, char *argv[]) {
         die("cannot initialize glfw");
 
     int fullscreen = getenv("INFOBEAMER_FULLSCREEN") != NULL;
-    int width = 1024;
-    int height = 768;
+    int width = 1920;
+    int height = 1080;
 
     const char *new_width = getenv("INFOBEAMER_WIDTH");
     if (new_width)
